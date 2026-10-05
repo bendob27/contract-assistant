@@ -9,3 +9,4 @@ The assistant was built as a phased pilot. Each phase had an exit check, and eac
 | 3 | Connected private inference to Hermes Agent and Slack | Authorised users get cited answers in Slack, permission and routing tests pass, and no request reaches an external model |
 | 4 | Fine-tuned a targeted LoRA adapter | Tuned and untuned are compared on unseen contracts, and the adapter goes into service only if it does better |
 | 5 | Opened controlled external routing | Only eligible data goes out, to named models and providers, with no silent fallback |
+| 6 | Ran Mistral Small 4, quantised to fit the one GPU, and tested it against Ministral 3 14B Instruct | Small 4 takes over only after the comparison, and Ministral 3 14B and its adapter are then retired |
