@@ -10,33 +10,36 @@ flowchart LR
         H --> R["Contract retrieval<br/>source references, access controls"]
         H --> G["LiteLLM gateway<br/>with routing policy"]
         G --> V["vLLM"]
-        V --> M["Mistral Small 4<br/>quantised, one GPU"]
+        V --> M["Mistral Small 4<br/>quantised base model"]
+        V --> S["Contract specialist<br/>LoRA adapter on the base model"]
         D["Docling<br/>local extraction and OCR"] --> R
     end
 
-    G -. "only where the confidentiality policy permits" .-> O["OpenRouter<br/>external models"]
+    G -. "only where the confidentiality policy permits" .-> O["OpenRouter<br/>separate tool, external models"]
 ```
 
-A request starts in Slack. Hermes Agent checks who is asking, calls contract retrieval for the passages that person may see, and sends the request to the model gateway. The gateway applies the routing policy. It passes the request to vLLM on our own server or, where the policy permits, to an external model through OpenRouter.
+A request starts in Slack. Hermes Agent checks who is asking, calls contract retrieval for the passages that person may see, and sends the request to the model gateway. The gateway applies the routing policy. It passes the request to vLLM on our own server or, where the policy permits, to an external model through OpenRouter, a separate tool that hosts none of our models.
 
 ## Components
 
 | Component | Tool | Role |
 | --- | --- | --- |
-| Hosting | [Hetzner GEX131](https://www.hetzner.com/dedicated-rootserver/matrix-gpu/) | Runs everything private: the model, retrieval and the agent |
+| Hosting | [Hetzner GEX131](https://www.hetzner.com/dedicated-rootserver/matrix-gpu/) | Runs everything private: the base model, the specialist, retrieval and the agent |
 | Admin access | [SSH over Tailscale](https://tailscale.com/docs/features/tailscale-ssh) | Administration of the server |
 | Extraction | [Docling](https://docling-project.github.io/docling/) with local OCR | Turns PDF and Word contracts into text and keeps clause references, and page references for PDFs |
 | Model source | [Hugging Face Hub](https://huggingface.co/docs/hub) | Models are downloaded directly onto the server. Contracts are not uploaded |
-| Serving | [vLLM](https://docs.vllm.ai/en/latest/) | Serves Mistral Small 4 behind an OpenAI-compatible endpoint |
+| Serving | [vLLM](https://docs.vllm.ai/en/latest/features/lora/) | Serves the base model and the specialist behind one OpenAI-compatible endpoint |
 | Retrieval | Contract retrieval service | Searches the extracted contracts, returns source references and applies access controls. Its embedding model runs on the server |
 | Agent | [Hermes Agent](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/slack) | Connects Slack, retrieval and the models |
-| Gateway | [LiteLLM](https://docs.litellm.ai/docs/routing) | One endpoint in front of the private model and the external models |
+| Gateway | [LiteLLM](https://docs.litellm.ai/docs/routing) | One endpoint in front of the self-hosted models and OpenRouter |
 | Routing policy | Our own code | Decides which model may receive a request |
-| External models | [OpenRouter](https://openrouter.ai/docs/guides/routing/provider-selection) | Access to external models where the confidentiality policy permits |
+| External models | [OpenRouter](https://openrouter.ai/docs/guides/routing/provider-selection) | A separate tool for external models, used only for tasks the confidentiality policy permits |
 
-## Model
+## Base model and specialist
 
-The model in service is [Mistral Small 4](https://huggingface.co/mistralai/Mistral-Small-4-119B-2603), an open-weight Mistral model, quantised to fit the server's single GPU. It serves every private request: general tasks, agent coordination and routine contract work. Contract knowledge comes from retrieval, not from fine-tuning.
+The base model is [Mistral Small 4](https://huggingface.co/mistralai/Mistral-Small-4-119B-2603), an open-weight Mistral model, quantised and self-hosted on vLLM. The contract specialist is a LoRA adapter on it, fine-tuned on reviewed examples drawn from our contracts.
+
+vLLM serves the adapter next to the base model from one process, each under its own model name ([vLLM documentation on LoRA adapters](https://docs.vllm.ai/en/latest/features/lora/)). The base model takes general private tasks and agent coordination, and the specialist takes the routine contract work. Because the specialist is an adapter rather than a second copy of the model, both fit on the one GPU.
 
 ### Why this model
 
@@ -49,23 +52,23 @@ According to its model card on 5 October 2026:
 - a reasoning mode that can be switched on per request
 - German among the supported languages
 
-Mistral publishes the checkpoint in FP8, and the model card's vLLM example serves it across two GPUs. Quantised, it fits on the one 96 GB GPU of our server.
+Mistral publishes the checkpoint in FP8, and the model card's vLLM example serves it across two GPUs. Quantised, it fits on the one 96 GB GPU of our server, together with the adapter.
 
 ### How it was chosen
 
-The assistant first ran [Ministral 3 14B Instruct](https://huggingface.co/mistralai/Ministral-3-14B-Instruct-2512), with a LoRA adapter fine-tuned on reviewed examples from our contracts. We then ran Mistral Small 4, quantised to fit the same GPU, and tested it against Ministral 3 14B Instruct. Small 4 with retrieval took over every private request, and Ministral 3 14B and its adapter were retired.
+The assistant first ran [Ministral 3 14B Instruct](https://huggingface.co/mistralai/Ministral-3-14B-Instruct-2512), with a LoRA adapter fine-tuned on reviewed examples from our contracts. We then ran Mistral Small 4, quantised to fit the same GPU, and tested it against Ministral 3 14B Instruct. Small 4 became the base model, the contract specialist was fine-tuned again as a LoRA adapter on it, and Ministral 3 14B and its adapter were retired.
 
 Every model in service has to pass five checks:
 
 1. The licence terms of the exact checkpoint.
 2. Tool calling end to end, from Hermes Agent through LiteLLM to vLLM ([vLLM documentation on tool calling](https://docs.vllm.ai/en/latest/features/tool_calling/)).
 3. Context length. [Hermes Agent's documentation](https://hermes-agent.nousresearch.com/docs/integrations/providers) asks for at least 64k tokens, and long contracts with their retrieved passages have to fit.
-4. Memory use and speed on the one GPU.
+4. Memory use and speed on the one GPU, with the base model and the adapter serving together.
 5. Quality on unseen contracts against the model it would replace.
 
 ### Server
 
-[Hetzner GEX131](https://www.hetzner.com/dedicated-rootserver/matrix-gpu/): one NVIDIA RTX PRO 6000 Blackwell Max-Q with 96 GB of VRAM, and 256 GB of RAM. Hetzner offers it in its Nuremberg and Falkenstein data centres, both in Germany. The quantised Mistral Small 4 runs on this one card. The smaller GEX45 has a 24 GB GPU, too small for Mistral Small 4 even when quantised.
+[Hetzner GEX131](https://www.hetzner.com/dedicated-rootserver/matrix-gpu/): one NVIDIA RTX PRO 6000 Blackwell Max-Q with 96 GB of VRAM, and 256 GB of RAM. Hetzner offers it in its Nuremberg and Falkenstein data centres, both in Germany. The quantised Mistral Small 4 and the specialist adapter run on this one card. The smaller GEX45 has a 24 GB GPU, too small for Mistral Small 4 even when quantised.
 
 ## Request flow
 
@@ -83,7 +86,7 @@ sequenceDiagram
     R-->>H: Passages with<br/>source references
     H->>G: Question, history,<br/>attachments and passages
     alt Private route, the default
-        G->>V: Mistral Small 4
+        G->>V: Base model or<br/>contract specialist
         V-->>G: Answer
     else External route, only if the whole request is eligible
         G->>O: Named model and provider
@@ -99,8 +102,9 @@ sequenceDiagram
 
 | Request | Route | Condition |
 | --- | --- | --- |
-| Routine contract analysis such as NDAs and supplier agreements, general tasks and agent coordination | Mistral Small 4 with retrieval, private | None |
-| Selected bespoke liability or cross-border analysis | External model through OpenRouter | The whole request is eligible to leave under the confidentiality policy, and the external model tested better on that kind of task |
+| Routine NDA and supplier-agreement analysis | Contract specialist with retrieval, private | None |
+| General private tasks and agent coordination | Base model, private | None |
+| Selected bespoke liability or cross-border analysis | External model through OpenRouter, a separate tool | The whole request is eligible to leave under the confidentiality policy, and the external model tested better on that kind of task |
 
 ### Rules
 
@@ -120,7 +124,7 @@ One control for each path.
 | Conversation history | A thread that has held private material stays on the private route, whatever the next question is |
 | Attachments | A file posted in Slack is classified before any external model can receive it |
 | Retrieved passages | Passages carry the confidentiality of their contract into the routing decision |
-| Background summarisation | Any summarising or memory step the agent runs on its own uses the private model |
+| Background summarisation | Any summarising or memory step the agent runs on its own uses the private models |
 | OCR | Runs on the server, with OCR engines that Docling runs locally |
 | Embeddings | The embedding model runs on the server. There is no external embedding service |
 | Fallbacks | No external fallback is configured for private routes, and a test proves it. If the private model is unavailable, the request fails and says so |
@@ -143,7 +147,7 @@ Official documentation, checked on 4 and 5 October 2026.
 - Docling: [documentation](https://docling-project.github.io/docling/)
 - Hugging Face: [Hub](https://huggingface.co/docs/hub)
 - Mistral: [models overview](https://docs.mistral.ai/models), [Mistral Small 4 model card](https://huggingface.co/mistralai/Mistral-Small-4-119B-2603), [Ministral 3 14B Instruct model card](https://huggingface.co/mistralai/Ministral-3-14B-Instruct-2512)
-- vLLM: [documentation](https://docs.vllm.ai/en/latest/), [tool calling](https://docs.vllm.ai/en/latest/features/tool_calling/)
+- vLLM: [documentation](https://docs.vllm.ai/en/latest/), [LoRA adapters](https://docs.vllm.ai/en/latest/features/lora/), [tool calling](https://docs.vllm.ai/en/latest/features/tool_calling/)
 - Hermes Agent: [providers](https://hermes-agent.nousresearch.com/docs/integrations/providers), [Slack](https://hermes-agent.nousresearch.com/docs/user-guide/messaging/slack)
 - LiteLLM: [routing](https://docs.litellm.ai/docs/routing), [vLLM provider](https://docs.litellm.ai/docs/providers/vllm), [OpenRouter provider](https://docs.litellm.ai/docs/providers/openrouter)
 - OpenRouter: [provider selection](https://openrouter.ai/docs/guides/routing/provider-selection)

@@ -1,6 +1,6 @@
 # Evaluation
 
-No result is assumed in advance. Fine-tuning may not beat retrieval, a larger model may not beat a smaller tuned one, and an external model may not beat the private one on complex contracts. The evaluation exists to find out, and it decides what goes into service. Its measured results are not published in this repository.
+No result is assumed in advance. Fine-tuning may not beat retrieval, a larger model may not beat a smaller tuned one, and an external model may not beat the private ones on complex contracts. The evaluation exists to find out, and it decides what goes into service. Its measured results are not published in this repository.
 
 ## Questions it answers
 
@@ -10,9 +10,9 @@ No result is assumed in advance. Fine-tuning may not beat retrieval, a larger mo
 | 2 | How good is the untuned model with retrieval and the current playbook? | The baseline that every later result is compared with |
 | 3 | Does a tuned specialist beat that baseline on unseen contracts? | Whether an adapter is deployed at all |
 | 4 | Does a candidate model beat the one in service, as when quantised Mistral Small 4 was tested against Ministral 3 14B Instruct? | Which model is in service |
-| 5 | On cases whose data may leave, does an external model do better than the private one? | Whether an external route is opened for that kind of task |
+| 5 | On cases whose data may leave, does an external model do better than the private ones? | Whether an external route is opened for that kind of task |
 | 6 | Do permissions and routing hold under test? | Whether the assistant may be used in Slack |
-| 7 | Does the model run on one GPU at a usable speed? | Whether one GPU is enough |
+| 7 | Do the base model and the adapter run together on one GPU at a usable speed? | Whether one GPU is enough |
 
 ## Test data
 
@@ -32,7 +32,7 @@ No result is assumed in advance. Fine-tuning may not beat retrieval, a larger mo
 | External against private | Only on data that is eligible to leave |
 | Permissions | A user without access neither retrieves a passage nor receives an answer built on it. Answers into shared channels are checked first |
 | Routing | A private request never reaches an external provider, including when the private model is down |
-| Capacity | Memory use and response time of the quantised model on the one GPU |
+| Capacity | Memory use and response time with the quantised base model and the adapter loaded together on the one GPU |
 
 ## Acceptance criteria
 
