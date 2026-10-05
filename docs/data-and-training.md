@@ -1,11 +1,11 @@
 # Data and training
 
-Mistral Small 4 with retrieval replaced Ministral 3 14B Instruct and its fine-tuned LoRA adapter, so no fine-tuned model is in service. The data work below still feeds retrieval and evaluation. The fine-tuning steps describe the retired adapter.
+The contract specialist in service is a LoRA adapter on Mistral Small 4, the base model. It replaced an earlier adapter on Ministral 3 14B Instruct, which is retired.
 
 ## Corpus
 
 - About 500 contracts signed over three years, with each agreement linked to its amendments and renewals.
-- Extraction runs on the server, and the searchable contracts are held there. Model weights are downloaded from Hugging Face Hub directly onto it, so no contract is uploaded to Hugging Face.
+- Extraction and fine-tuning run on the server, and the searchable contracts are held there. Models are downloaded from Hugging Face Hub directly onto it, so no contract is uploaded to Hugging Face.
 
 ## Sequence
 
@@ -21,22 +21,18 @@ The order matters. The split comes before any examples are generated, and the ba
 8. **Fine-tune** a targeted LoRA adapter on the reviewed examples.
 9. **Compare** the tuned and the untuned model on unseen contracts. The adapter goes into service only if it does better.
 
-Steps 8 and 9 produced the adapter for Ministral 3 14B Instruct, now retired. The reviewed examples and the test set remain the reference for every model comparison.
+The reviewed examples and the test set are the reference for every comparison, including Mistral Small 4 against Ministral 3 14B Instruct.
 
 ## Rules for training data
 
-These rules governed the training data for the retired adapter.
-
 - Signed terms are historical outcomes, not necessarily our preferred negotiating positions. This is why examples are written against the current playbook.
-- Train only on examples approved for the adapter's audience. Retrieval permissions cannot prevent a model from recalling sensitive material it learned during training. Material restricted to some users stays out of training. It is served through retrieval, where access controls apply.
+- Train only on examples approved for the specialist's audience. Retrieval permissions cannot prevent a model from recalling sensitive material it learned during training. Material restricted to some users stays out of training. It is served through retrieval, where access controls apply.
 
-## Why retrieval carries the contracts
+## Why retrieval stays
 
-New contracts become searchable without retraining, answers can cite the clause they rest on, and access controls apply to each request. With no fine-tuned model in service, nothing from the contracts sits in the model's weights, so the model cannot recall a contract a user may not see.
+Retrieval is maintained alongside fine-tuning. New contracts become searchable without retraining, answers can cite the clause they rest on, and access controls apply to each request. Fine-tuning is for how the specialist handles narrow tasks. It is not where the contracts are stored.
 
-## Fine-tuning toolchain
-
-Used for the retired adapter.
+## Toolchain
 
 | Tool | Role |
 | --- | --- |
