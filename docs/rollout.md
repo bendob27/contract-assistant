@@ -1,13 +1,13 @@
 # Rollout
 
-The assistant was built as a phased pilot. Each phase had an exit check, and each could end with the decision to stop.
+The assistant is built in five phases. Each phase has an exit check. Each can end with the decision to stop.
 
 | Phase | Work | Exit check |
 | --- | --- | --- |
-| 1 | Processed 20 varied contracts: inventory, local extraction, quality checks | Extraction quality is known for numbers, negations, tables and scanned pages |
-| 2 | Established retrieval and the baseline evaluation | The untuned model with retrieval and the playbook has a measured baseline |
-| 3 | Connected private inference to Hermes Agent and Slack | Authorised users get cited answers in Slack, permission and routing tests pass, and no request reaches an external model |
-| 4 | Fine-tuned a targeted LoRA adapter | Tuned and untuned are compared on unseen contracts, and the adapter goes into service only if it does better |
-| 5 | Opened controlled external routing | Only eligible data goes out, to named models and providers, with no silent fallback |
-| 6 | Ran Mistral Small 4, quantised to fit the one GPU, and tested it against Ministral 3 14B Instruct | Small 4 takes over only after the comparison, and Ministral 3 14B and its adapter are then retired |
-| 7 | Fine-tuned the contract specialist as a LoRA adapter on Mistral Small 4 | The adapter goes into service only if it beats untuned Small 4 with retrieval on unseen contracts |
+| 1 | Define the objective, the value metric, the observation period, the review rubric and the decision owner. Inventory the agreements, and find the comparable cohorts and the outcome records that exist | The value definition is approved, and the available data is known |
+| 2 | Reserve the evaluation cases. Build the private evidence library, the reviewed case table, the calculation rules and the first playbook | The reserved cases are locked, and the case table and the calculator pass review |
+| 3 | Choose the base model with a feasibility and quality test on representative cases. Run the untuned model with retrieval and the calculator through the private service and Slack | Tool calling works end to end, permission and routing tests pass, and the baseline is measured |
+| 4 | Train the LoRA adapter privately on reviewed examples. Compare it with the baseline on the reserved cases, and record costs and reviewer effort | The adapter meets the pass marks fixed in advance, or it stays out of service |
+| 5 | Pilot with human approval. Collect structured corrections, track actual outcomes and version every change | A person approves every term, and the previous model, adapter, prompts and calculation rules can be restored |
+
+A person approves every proposal in every phase. Corrections feed the next training run. Outcomes are tracked from signing.
